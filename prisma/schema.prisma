@@ -1,0 +1,388 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── AUTH ───────────────────────────────────────────────────────────────────
+
+model Admin {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String   // bcrypt hash
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── PEOPLE ─────────────────────────────────────────────────────────────────
+
+model Department {
+  id            String         @id @default(cuid())
+  name          String         @unique
+  employees     Employee[]
+  subscriptions Subscription[]
+  assets        Asset[]
+  createdAt     DateTime       @default(now())
+}
+
+model Designation {
+  id        String     @id @default(cuid())
+  title     String     @unique
+  employees Employee[]
+  createdAt DateTime   @default(now())
+}
+
+model Employee {
+  id            String         @id @default(cuid())
+  name          String
+  email         String         @unique
+  phone         String?
+  departmentId  String
+  department    Department     @relation(fields: [departmentId], references: [id])
+  designationId String?
+  designation   Designation?   @relation(fields: [designationId], references: [id])
+  isTeamLead    Boolean        @default(false)
+  status        EmployeeStatus @default(ACTIVE)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  assetAssignments  AssetAssignment[]
+  subscriptionUsers SubscriptionUser[]
+  floorMapDesks     FloorMapDesk[]
+  auditLogs         AuditLog[]
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+}
+
+// ─── SOFTWARE / SUBSCRIPTIONS ────────────────────────────────────────────────
+
+model Subscription {
+  id                String             @id @default(cuid())
+  name              String
+  url               String?
+  category          String?
+  planName          String?
+  billingCycle      BillingCycle
+  buyDate           DateTime?
+  renewalDate       DateTime?
+  nextPaymentDate   DateTime?
+  price             Decimal            @db.Decimal(10, 2)
+  currency          String             @default("INR")
+  paymentMethod     String?
+  licenceCount      Int                @default(1)
+  departmentId      String?
+  department        Department?        @relation(fields: [departmentId], references: [id])
+  teamLeadId        String?
+  teamLeadName      String?
+  status            SubscriptionStatus @default(ACTIVE)
+  usernameEncrypted String?
+  passwordEncrypted String?
+  tags              String[]
+  notes             String?
+  cancelledAt       DateTime?
+  cancelReason      String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  users    SubscriptionUser[]
+  invoices SoftwareInvoice[]
+  alerts   Alert[]
+}
+
+enum BillingCycle {
+  MONTHLY
+  YEARLY
+  ONE_TIME
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  EXPIRED
+}
+
+model SubscriptionUser {
+  id             String       @id @default(cuid())
+  subscriptionId String
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  employeeId     String
+  employee       Employee     @relation(fields: [employeeId], references: [id])
+  username       String?
+  assignedAt     DateTime     @default(now())
+
+  @@unique([subscriptionId, employeeId])
+}
+
+model SoftwareInvoice {
+  id             String       @id @default(cuid())
+  subscriptionId String
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  invoiceNumber  String?
+  amount         Decimal      @db.Decimal(10, 2)
+  currency       String       @default("INR")
+  invoiceDate    DateTime
+  filePath       String?
+  fileName       String?
+  fileType       String?
+  notes          String?
+  createdAt      DateTime     @default(now())
+}
+
+// ─── HARDWARE ────────────────────────────────────────────────────────────────
+
+model Processor {
+  id        String         @id @default(cuid())
+  name      String         @unique
+  brand     String?
+  grade     ProcessorGrade
+  createdAt DateTime       @default(now())
+  assets    Asset[]
+}
+
+enum ProcessorGrade {
+  LOW
+  MID
+  HIGH
+}
+
+model Vendor {
+  id               String            @id @default(cuid())
+  name             String
+  contactPerson    String?
+  phone            String?
+  email            String?
+  website          String?
+  type             VendorType
+  notes            String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  assets           Asset[]
+  hardwareInvoices HardwareInvoice[]
+}
+
+enum VendorType {
+  HARDWARE
+  SOFTWARE
+  BOTH
+}
+
+model Asset {
+  id            String         @id @default(cuid())
+  assetId       String         @unique
+  type          AssetType
+  brand         String?
+  model         String?
+  serialNumber  String?        @unique
+  osType        String?
+  processorId   String?
+  processor     Processor?     @relation(fields: [processorId], references: [id])
+  ramGb         Int?
+  storageGb     Int?
+  storageType   String?
+  purchaseDate  DateTime?
+  purchasePrice Decimal?       @db.Decimal(10, 2)
+  currency      String         @default("INR")
+  vendorId      String?
+  vendor        Vendor?        @relation(fields: [vendorId], references: [id])
+  warrantyExpiry DateTime?
+  departmentId  String?
+  department    Department?    @relation(fields: [departmentId], references: [id])
+  locationId    String?
+  location      StockLocation? @relation(fields: [locationId], references: [id])
+  status        AssetStatus    @default(IN_STOCK)
+  remarks       String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  assignments     AssetAssignment[]
+  accessories     Accessory[]
+  invoiceItems    HardwareInvoiceItem[]
+  maintenanceLogs MaintenanceLog[]
+  alerts          Alert[]
+  scrapRecord     ScrapRecord?
+  floorMapDesk    FloorMapDesk?
+}
+
+enum AssetType {
+  DESKTOP
+  LAPTOP
+  MONITOR
+  SERVER
+  PERIPHERAL
+  OTHER
+}
+
+enum AssetStatus {
+  IN_USE
+  IN_STOCK
+  IN_REPAIR
+  SCRAPPED
+}
+
+model AssetAssignment {
+  id         String    @id @default(cuid())
+  assetId    String
+  asset      Asset     @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  employeeId String
+  employee   Employee  @relation(fields: [employeeId], references: [id])
+  assignedAt DateTime  @default(now())
+  returnedAt DateTime?
+  isCurrent  Boolean   @default(true)
+  notes      String?
+}
+
+model Accessory {
+  id             String      @id @default(cuid())
+  assetId        String
+  asset          Asset       @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  name           String
+  brand          String?
+  serialNumber   String?
+  warrantyExpiry DateTime?
+  purchaseDate   DateTime?
+  status         AssetStatus @default(IN_USE)
+  createdAt      DateTime    @default(now())
+}
+
+model HardwareInvoice {
+  id            String                @id @default(cuid())
+  invoiceNumber String?
+  amount        Decimal               @db.Decimal(10, 2)
+  currency      String                @default("INR")
+  invoiceDate   DateTime
+  vendorId      String?
+  vendor        Vendor?               @relation(fields: [vendorId], references: [id])
+  filePath      String?
+  fileName      String?
+  fileType      String?
+  notes         String?
+  createdAt     DateTime              @default(now())
+
+  items HardwareInvoiceItem[]
+}
+
+model HardwareInvoiceItem {
+  id        String          @id @default(cuid())
+  invoiceId String
+  invoice   HardwareInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  assetId   String
+  asset     Asset           @relation(fields: [assetId], references: [id])
+}
+
+model MaintenanceLog {
+  id          String   @id @default(cuid())
+  assetId     String
+  asset       Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  serviceDate DateTime
+  description String
+  cost        Decimal? @db.Decimal(10, 2)
+  vendor      String?
+  createdAt   DateTime @default(now())
+}
+
+// ─── STOCK & LOCATION ────────────────────────────────────────────────────────
+
+model StockLocation {
+  id            String         @id @default(cuid())
+  name          String         @unique
+  description   String?
+  createdAt     DateTime       @default(now())
+  assets        Asset[]
+  floorMapDesks FloorMapDesk[]
+}
+
+// ─── FLOOR MAP ────────────────────────────────────────────────────────────────
+
+model FloorMap {
+  id        String         @id @default(cuid())
+  name      String
+  gridCols  Int            @default(20)
+  gridRows  Int            @default(15)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  desks     FloorMapDesk[]
+}
+
+model FloorMapDesk {
+  id         String         @id @default(cuid())
+  floorMapId String
+  floorMap   FloorMap       @relation(fields: [floorMapId], references: [id], onDelete: Cascade)
+  gridX      Int
+  gridY      Int
+  label      String?
+  employeeId String?
+  employee   Employee?      @relation(fields: [employeeId], references: [id])
+  assetId    String?        @unique
+  asset      Asset?         @relation(fields: [assetId], references: [id])
+  locationId String?
+  location   StockLocation? @relation(fields: [locationId], references: [id])
+
+  @@unique([floorMapId, gridX, gridY])
+}
+
+// ─── SCRAP ────────────────────────────────────────────────────────────────────
+
+model ScrapRecord {
+  id             String   @id @default(cuid())
+  assetId        String   @unique
+  asset          Asset    @relation(fields: [assetId], references: [id])
+  scrappedAt     DateTime @default(now())
+  reason         String?
+  disposalMethod String?
+  notes          String?
+}
+
+// ─── ALERTS ──────────────────────────────────────────────────────────────────
+
+model Alert {
+  id             String        @id @default(cuid())
+  type           AlertType
+  title          String
+  message        String
+  dueDate        DateTime?
+  isDismissed    Boolean       @default(false)
+  isEmailSent    Boolean       @default(false)
+  subscriptionId String?
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  assetId        String?
+  asset          Asset?        @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
+}
+
+enum AlertType {
+  SUBSCRIPTION_RENEWAL
+  WARRANTY_EXPIRY
+  PAYMENT_DUE
+  LOW_STOCK
+}
+
+// ─── AUDIT LOG ────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id         String    @id @default(cuid())
+  action     String
+  entity     String
+  entityId   String
+  detail     String?
+  adminId    String?
+  employeeId String?
+  employee   Employee? @relation(fields: [employeeId], references: [id])
+  createdAt  DateTime  @default(now())
+}
+
+// ─── SETTINGS ────────────────────────────────────────────────────────────────
+
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
