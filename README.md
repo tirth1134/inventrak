@@ -226,7 +226,7 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
 **Tirth Vora**
 
 - GitHub: [@tirth1134](https://github.com/tirth1134)
-- LinkedIn: [Your LinkedIn Profile](https://linkedin.com/in/tirth1134)
+- LinkedIn: [Your LinkedIn Profile](linkedin.com/in/tirth-vora-37a0b1333)
 
 ---
 
